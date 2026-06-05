@@ -270,6 +270,51 @@ class PipelineRun:
         print(f"[tracking] unrecognised figure type: {type(fig)}")
 
 
+# ── DagsHub setup helper ──────────────────────────────────────────────────────
+
+def dagshub_init(repo_owner: str, repo_name: str, token: str | None = None) -> str:
+    """
+    Point MLflow at DagsHub's hosted tracking server for this repo.
+
+    Preferred on Colab — call this once before any PipelineRun:
+
+        from mapanything_pipeline.tracking import dagshub_init
+        dagshub_init("your-gh-username", "mapanything-mapillary-pipeline")
+
+    Args:
+        repo_owner: your GitHub / DagsHub username
+        repo_name:  repository name
+        token:      DagsHub access token (Settings → Tokens).
+                    If None, falls back to DAGSHUB_TOKEN env var.
+                    Never hardcode — use Colab Secrets or os.environ.
+
+    Returns:
+        The MLflow tracking URI that was set.
+    """
+    token = token or os.environ.get("DAGSHUB_TOKEN", "")
+
+    try:
+        import dagshub
+        dagshub.init(repo_owner=repo_owner, repo_name=repo_name, mlflow=True)
+        uri = f"https://dagshub.com/{repo_owner}/{repo_name}.mlflow"
+        print(f"DagsHub MLflow ready: {uri}")
+        print(f"Dashboard: https://dagshub.com/{repo_owner}/{repo_name}/experiments")
+        return uri
+    except ImportError:
+        pass
+
+    # Fallback: set env vars manually if dagshub package not installed
+    uri = f"https://dagshub.com/{repo_owner}/{repo_name}.mlflow"
+    os.environ["MLFLOW_TRACKING_URI"]      = uri
+    os.environ["MLFLOW_TRACKING_USERNAME"] = repo_owner
+    os.environ["MLFLOW_TRACKING_PASSWORD"] = token
+
+    import mlflow
+    mlflow.set_tracking_uri(uri)
+    print(f"DagsHub MLflow (manual): {uri}")
+    return uri
+
+
 # ── Convenience: model comparison across runs ─────────────────────────────────
 
 def compare_models(
